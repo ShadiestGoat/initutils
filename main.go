@@ -48,8 +48,14 @@ func (i *Initializer[T]) Init() error {
 		depMaps[m] = map[Module]bool{}
 		modules = append(modules, m)
 
-		for _, r := range reqs {
-			depMaps[m][r] = true
+		for _, dep := range reqs {
+			if _, ok := i.handlers[dep]; !ok {
+				return &ErrUnknownDep{
+					Module: m,
+					Dep:    dep,
+				}
+			}
+			depMaps[m][dep] = true
 		}
 	}
 
@@ -86,6 +92,14 @@ type ErrDepCycle struct {
 
 func (e ErrDepCycle) Error() string {
 	return fmt.Sprintf(`Dependency cycle between '%s' and '%s'`, e.Module1, e.Module2)
+}
+
+type ErrUnknownDep struct {
+	Module Module
+	Dep Module
+}
+func (e ErrUnknownDep) Error() string {
+	return fmt.Sprintf("Module '%s' requires module '%s' but module '%s' was never registered", e.Module, e.Dep, e.Module)
 }
 
 func (i *Initializer[T]) resolve(m Module, cache map[Module][]Module) []Module {

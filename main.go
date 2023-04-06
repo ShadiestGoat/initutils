@@ -25,7 +25,7 @@ func NewInitializer[T any](ctx *T) *Initializer[T] {
 	}
 }
 
-// Register a module, along with it's dependencies 
+// Register a module, along with it's dependencies
 // You can also register what this module must be executed before, with a pre-hook, using the preHook argument.
 func (i *Initializer[T]) Register(m Module, h func(c *T), preHooks []Module, dependencies ...Module) {
 	i.handlers[m] = h
@@ -35,7 +35,7 @@ func (i *Initializer[T]) Register(m Module, h func(c *T), preHooks []Module, dep
 	}
 
 	i.deps[m] = append(i.deps[m], dependencies...)
-	
+
 	for _, bfr := range preHooks {
 		if i.deps[bfr] == nil {
 			i.deps[bfr] = []Module{}

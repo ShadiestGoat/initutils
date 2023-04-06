@@ -4,6 +4,14 @@ This is a package to help you with the initialization of several sub-packages.
 
 The use case of this is if you have an application with a lot of sub-package that need to be initialized, but they require config variables, or they rely on variables that other sub-packages create. This package will help you manage those dependencies, and place an order for them.
 
+## Features
+
+- ✅ Context Type Safety
+- ✅ Module Dependencies
+- ✅ Module Pre-hooks (or *before* dependencies)
+- ✅ Error Checks
+- ✅ Individual Initializers, allowing for priority initializers
+
 ## Usage
 
 I recommend creating an `initializer` sub-package for your application.
@@ -34,30 +42,22 @@ type InitContext struct {
 
 var ctx = &InitContext{}
 
-var priorityInit = initutils.NewInitializer[InitContext](ctx)
-var normalInit   = initutils.NewInitializer[InitContext](ctx)
+var initMgr = initutils.NewInitializer(ctx)
 
-func RegisterPriority(m initutils.Module, h func(c *InitContext), dependencies ...initutils.Module) {
-    priorityInit.Register(m, h, dependencies...)
-}
-
-func Register(m initutils.Module, h func(c *InitContext), dependencies ...initutils.Module) {
-    normalInit.Register(m, h, dependencies...)
+func Register(m initutils.Module, h func(c *InitContext), preHooks []initutils.Module, dependencies ...initutils.Module) {
+    initMgr.Register(m, h, preHooks, dependencies...)
 }
 
 func Init() {
-    err := priorityInit.Init()
-    if err != nil {
-        panic(err)
-    }
-
-    err = normalInit.Init()
+    err = initMgr.Init()
     if err != nil {
         panic(err)
     }
 }
 ```
 
-Then, you need to register each module using ether `initializer.RegisterPriority` or `initializer.Register`. Finally, when you wish to initialize your modules, run `initializer.Init`. This will place all your packages in the correct order (based on dependencies)
+Then, you need to register each module using `initializer.Register`. Finally, when you wish to initialize your modules, run `initializer.Init`. This will place all your packages in the correct order (based on dependencies).
+
+Using this approach you can also create a priority initializer, which runs before the normal one. Simply make a new initializer (you can share a context if you want to), then add another `Register()` function (like `RegisterPriority(...)`). After that, in the aliased `Init()` function, add the priority initializer to `Init()` before the normal initializer. 
 
 This sub-package is needed so that you can define a type safe context, and define constants for your module names.

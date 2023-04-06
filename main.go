@@ -1,15 +1,14 @@
 package initutils
 
 import (
-	"fmt"
 	"sort"
 )
 
 // Please note, T is the init context. T must be a struct, and **not** a pointer.
 type Initializer[T any] struct {
-	deps map[Module][]Module
-	handlers  map[Module]func(c *T)
-	ctx *T
+	deps     map[Module][]Module
+	handlers map[Module]func(c *T)
+	ctx      *T
 }
 
 // Create a new Initializer instance. This will create a new dependency manager, any dependencies here will not be shared with other initializers.
@@ -20,15 +19,30 @@ func NewInitializer[T any](ctx *T) *Initializer[T] {
 	}
 
 	return &Initializer[T]{
-		deps: map[Module][]Module{},
-		handlers:  map[Module]func(c *T){},
-		ctx: ctx,
+		deps:     map[Module][]Module{},
+		handlers: map[Module]func(c *T){},
+		ctx:      ctx,
 	}
 }
 
-func (i *Initializer[T]) Register(m Module, h func(c *T), dependencies ...Module) {
+// Register a module, along with it's dependencies 
+// You can also register what this module must be executed before, with a pre-hook, using the preHook argument.
+func (i *Initializer[T]) Register(m Module, h func(c *T), preHooks []Module, dependencies ...Module) {
 	i.handlers[m] = h
-	i.deps[m] = dependencies
+
+	if i.deps[m] == nil {
+		i.deps[m] = []Module{}
+	}
+
+	i.deps[m] = append(i.deps[m], dependencies...)
+	
+	for _, bfr := range preHooks {
+		if i.deps[bfr] == nil {
+			i.deps[bfr] = []Module{}
+		}
+
+		i.deps[bfr] = append(i.deps[bfr], m)
+	}
 }
 
 // Call all the initialization functions, in the correct order (based on the dependencies each module requires)
@@ -83,24 +97,8 @@ func (i *Initializer[T]) Init() error {
 	return nil
 }
 
+// The name of a module. This should be used for constants in your initializer sub package.
 type Module string
-
-type ErrDepCycle struct {
-	Module1 Module
-	Module2 Module
-}
-
-func (e ErrDepCycle) Error() string {
-	return fmt.Sprintf(`Dependency cycle between '%s' and '%s'`, e.Module1, e.Module2)
-}
-
-type ErrUnknownDep struct {
-	Module Module
-	Dep Module
-}
-func (e ErrUnknownDep) Error() string {
-	return fmt.Sprintf("Module '%s' requires module '%s' but module '%s' was never registered", e.Module, e.Dep, e.Module)
-}
 
 func (i *Initializer[T]) resolve(m Module, cache map[Module][]Module) []Module {
 	if reqs, ok := cache[m]; ok {

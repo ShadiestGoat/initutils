@@ -1,5 +1,7 @@
 # Init Utils
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/shadiestgoat/initutils.svg)](https://pkg.go.dev/github.com/shadiestgoat/initutils)
+
 This is a package to help you with the initialization of several sub-packages.
 
 The use case of this is if you have an application with a lot of sub-package that need to be initialized, but they require config variables, or they rely on variables that other sub-packages create. This package will help you manage those dependencies, and place an order for them.

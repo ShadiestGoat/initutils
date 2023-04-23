@@ -45,10 +45,9 @@ func (i *Initializer[T]) Register(m Module, h func(c *T), preHooks []Module, dep
 	}
 }
 
-// Call all the initialization functions, in the correct order (based on the dependencies each module requires)
-// This method returns ErrDepCycle. If this happens, your application itself is having dependency cycles.
-// If such a thing happens, you should panic.
-func (i *Initializer[T]) Init() error {
+// Outputs the order in which the modules will be loaded in.
+// Error this can output are *ErrUnknownDep, in case there is a dependency that is never registered and *ErrDepCycle, in case there is a dependency cycle.
+func (i *Initializer[T]) Plan() ([]Module, error) {
 	newDeps := map[Module][]Module{}
 
 	for m := range i.deps {
@@ -64,7 +63,7 @@ func (i *Initializer[T]) Init() error {
 
 		for _, dep := range reqs {
 			if _, ok := i.handlers[dep]; !ok {
-				return &ErrUnknownDep{
+				return nil, &ErrUnknownDep{
 					Module: m,
 					Dep:    dep,
 				}
@@ -76,7 +75,7 @@ func (i *Initializer[T]) Init() error {
 	for m, deps := range newDeps {
 		for _, r := range deps {
 			if depMaps[r][m] {
-				return ErrDepCycle{
+				return nil, ErrDepCycle{
 					Module1: m,
 					Module2: r,
 				}
@@ -90,6 +89,19 @@ func (i *Initializer[T]) Init() error {
 		return !depMaps[modules[i]][modules[j]]
 	})
 
+	return modules, nil
+}
+
+// Call all the initialization functions, in the correct order (based on the dependencies each module requires)
+// This function outputs the same errors that Plan() can output. 
+// If there is an error, the application should panic, as this error is most likely baked in.
+func (i *Initializer[T]) Init() error {
+	modules, err := i.Plan()
+
+	if err != nil {
+		return err
+	}
+	
 	for _, m := range modules {
 		i.handlers[m](i.ctx)
 	}

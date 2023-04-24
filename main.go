@@ -83,8 +83,10 @@ func (i *Initializer[T]) Plan() ([]Module, error) {
 		}
 	}
 
-	// Less reports whether the element with index i
-	// must sort before the element with index j.
+	sort.Slice(modules, func(i, j int) bool {
+		return modules[i] > modules[j]
+	})
+	
 	sort.SliceStable(modules, func(i, j int) bool {
 		return !depMaps[modules[i]][modules[j]]
 	})

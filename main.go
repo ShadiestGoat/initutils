@@ -136,18 +136,17 @@ func (i *Initializer[T]) Plan() ([]Module, error) {
 // This function outputs the same errors that Plan() can output. 
 // If there is an error, the application should panic, as this error is most likely baked in.
 func (i *Initializer[T]) Init() error {
-	i.l.Lock()
-	defer i.l.Unlock()
-	
 	if i.Initialized {
 		return ErrAlreadyInitialized
 	}
-
 	modules, err := i.Plan()
-
 	if err != nil {
 		return err
 	}
+	
+	i.l.Lock()
+	defer i.l.Unlock()
+	
 	
 	for _, m := range modules {
 		i.handlers[m](i.ctx)

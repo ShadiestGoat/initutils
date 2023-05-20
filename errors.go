@@ -1,6 +1,9 @@
 package initutils
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type ErrDepCycle struct {
 	Module1 Module
@@ -19,3 +22,5 @@ type ErrUnknownDep struct {
 func (e ErrUnknownDep) Error() string {
 	return fmt.Sprintf("Module '%s' requires module '%s' but module '%s' was never registered", e.Module, e.Dep, e.Module)
 }
+
+var ErrAlreadyInitialized = errors.New("the initializer has already been called")

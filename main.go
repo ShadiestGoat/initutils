@@ -2,6 +2,7 @@ package initutils
 
 import (
 	"sort"
+	"sync"
 )
 
 // Please note, T is the init context. T must be a struct, and **not** a pointer.
@@ -9,6 +10,12 @@ type Initializer[T any] struct {
 	deps     map[Module][]Module
 	handlers map[Module]func(c *T)
 	ctx      *T
+
+	l sync.Mutex
+
+	// True if .Init() has already been called.
+	// It is heavily unrecommended to set this value manually.
+	Initialized bool
 }
 
 // Create a new Initializer instance. This will create a new dependency manager, any dependencies here will not be shared with other initializers.
@@ -22,12 +29,16 @@ func NewInitializer[T any](ctx *T) *Initializer[T] {
 		deps:     map[Module][]Module{},
 		handlers: map[Module]func(c *T){},
 		ctx:      ctx,
+		l: 		  sync.Mutex{},
 	}
 }
 
 // Register a module, along with it's dependencies
 // You can also register what this module must be executed before, with a pre-hook, using the preHook argument.
 func (i *Initializer[T]) Register(m Module, h func(c *T), preHooks []Module, dependencies ...Module) {
+	i.l.Lock()
+	defer i.l.Unlock()
+
 	i.handlers[m] = h
 
 	if i.deps[m] == nil {
@@ -45,9 +56,36 @@ func (i *Initializer[T]) Register(m Module, h func(c *T), preHooks []Module, dep
 	}
 }
 
+// Unregister a module
+// This will be a noop if .Init() has already been called.
+func (i *Initializer[T]) Unregister(m Module) {
+	i.l.Lock()
+	defer i.l.Unlock()
+	
+	delete(i.handlers, m)
+	delete(i.deps, m)
+
+	for m2, deps := range i.deps {
+		newDeps := []Module{}
+		
+		for _, d := range deps {
+			if d == m {
+				continue
+			}
+
+			newDeps = append(newDeps, d)	
+		}
+
+		i.deps[m2] = newDeps
+	}
+}
+
 // Outputs the order in which the modules will be loaded in.
 // Error this can output are *ErrUnknownDep, in case there is a dependency that is never registered and *ErrDepCycle, in case there is a dependency cycle.
 func (i *Initializer[T]) Plan() ([]Module, error) {
+	i.l.Lock()
+	defer i.l.Unlock()
+	
 	newDeps := map[Module][]Module{}
 
 	for m := range i.deps {
@@ -98,6 +136,13 @@ func (i *Initializer[T]) Plan() ([]Module, error) {
 // This function outputs the same errors that Plan() can output. 
 // If there is an error, the application should panic, as this error is most likely baked in.
 func (i *Initializer[T]) Init() error {
+	i.l.Lock()
+	defer i.l.Unlock()
+	
+	if i.Initialized {
+		return ErrAlreadyInitialized
+	}
+
 	modules, err := i.Plan()
 
 	if err != nil {
@@ -108,12 +153,15 @@ func (i *Initializer[T]) Init() error {
 		i.handlers[m](i.ctx)
 	}
 
+	i.Initialized = true
+
 	return nil
 }
 
 // The name of a module. This should be used for constants in your initializer sub package.
 type Module string
 
+// not safe concurrently!
 func (i *Initializer[T]) resolve(m Module, cache map[Module][]Module) []Module {
 	if reqs, ok := cache[m]; ok {
 		return reqs
